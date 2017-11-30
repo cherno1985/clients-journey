@@ -1,0 +1,74 @@
+import pandas as pd
+import numpy as np
+import datetime
+import openpyxl
+ 
+#Your raw file CSV
+loc = r"XXXXX.csv"
+#Output file - Shows the real Journey
+timeLine = r"XXXXXX.xlsx" 
+#Pivot by user and date
+base = r"XXXXXX.xlsx"
+
+print "Opening CSV file"
+df = pd.read_csv(loc)
+
+
+def str_to_date(string_var):
+    year = int(str(string_var)[0:4])
+    month = int(str(string_var)[4:6])
+    day = int(str(string_var)[6:8])
+    return datetime.date(year, month, day)
+
+
+def cell(sheet, row, col):
+    return sheet.cell(row=row, column=col).value
+
+print "Applying date manipulation"
+df['asDate'] = df['Date'].apply(str_to_date)
+df['day'] = df['asDate'].apply(lambda x: datetime.datetime.strftime(x, "%A"))
+
+print "Pivoting as index='userId', columns='asDate', values='Revenue' to piv"
+piv = df.pivot_table(values='Revenue', index='userId', columns='asDate', aggfunc=np.sum)
+
+print "Pivoting as values='Revenue', index='userId', columns='day' to day piv"
+day_piv = df.pivot_table(values='Revenue', index='userId', columns='day', aggfunc=np.count_nonzero)
+
+
+print "Moving to excel files"
+day_piv.to_excel("day-dist.xlsx", "sheet1")
+piv.to_excel("frequency.xlsx", "sheet1")
+piv.to_excel("base.xlsx", "sheet1")
+
+
+print "Reading frequency.xlsx"
+time_wb = openpyxl.load_workbook(timeLine)
+time_ws = time_wb.get_sheet_by_name("sheet1")
+
+users, dates = 2, 2
+
+print "counting number od users and dates"
+while time_ws.cell(row=users, column=1).value is not None:
+    users += 1
+while time_ws.cell(row=1, column=dates).value is not None:
+    dates += 1
+
+print "number of users - ", users-2
+
+
+holder = []
+
+for user in xrange(2, users):  # Each and every user
+    for date in xrange(2, dates):
+        # print cell(time_ws, 1, date), date
+        if cell(time_ws, user, date) is not None:
+            holder.append(date - 2)
+            break
+
+for j, user in enumerate(xrange(2, users)):  # Each and every user
+    for date in xrange(2, dates):
+        if cell(time_ws, user, date) is not None and date > 2:
+            time_ws.cell(row=user, column=date - holder[j]).value = cell(time_ws, user, date)
+            time_ws.cell(row=user, column=date).value = None
+
+time_wb.save(timeLine)
